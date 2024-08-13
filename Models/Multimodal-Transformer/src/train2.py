@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import sys
-from src import models
+from src import models2
 from src import ctc
 from src.utils import *
 import torch.optim as optim
@@ -31,7 +31,7 @@ def get_CTC_module(hyp_params):
     return a2l_module, v2l_module
 
 def initiate(hyp_params, train_loader, valid_loader, test_loader):
-    model = getattr(models, hyp_params.model+'Model')(hyp_params)
+    model = getattr(models2, hyp_params.model+'Model')()
 
     if hyp_params.use_cuda:
         model = model.cuda()
@@ -97,7 +97,7 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
         num_epoch = 0
        
         for i_batch, (batch_X, batch_Y, batch_META) in enumerate(train_loader):
-            sample_ind, text, audio, vision = batch_X
+            sample_ind, text, audio, vision, text_mask, audio_mask, vision_mask = batch_X
             eval_attr = batch_Y.squeeze(-1)  # if num of labels is 1
         
             model.zero_grad()
@@ -107,7 +107,7 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
                 
             if hyp_params.use_cuda:
                 with torch.cuda.device(0):
-                    text, audio, vision, eval_attr = text.cuda(), audio.cuda(), vision.cuda(), eval_attr.cuda()
+                    text, audio, vision, eval_attr, text_mask, audio_mask, vision_mask = text.cuda(), audio.cuda(), vision.cuda(), eval_attr.cuda(), text_mask.cuda(), audio_mask.cuda(), vision_mask.cuda()
                     if hyp_params.dataset == 'iemocap':
                         eval_attr = eval_attr.long()
             
@@ -163,8 +163,7 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
                 ctc_loss.backward()
                 combined_loss = raw_loss + ctc_loss
             else:
-                #print(text.shape, audio.shape, vision.shape)
-                preds, hiddens = net(text, audio, vision)
+                preds, hiddens = net(text, audio, vision, text_mask, audio_mask, vision_mask, False, ["A"])
                 if hyp_params.dataset == 'iemocap':
                     preds = preds.view(-1, 2)
                     eval_attr = eval_attr.view(-1)
@@ -208,12 +207,12 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
 
         with torch.no_grad():
             for i_batch, (batch_X, batch_Y, batch_META) in enumerate(loader):
-                sample_ind, text, audio, vision = batch_X
+                sample_ind, text, audio, vision, text_mask, audio_mask, vision_mask= batch_X
                 eval_attr = batch_Y.squeeze(dim=-1) # if num of labels is 1
-            
+                print(audio.shape, audio_mask.shape)
                 if hyp_params.use_cuda:
                     with torch.cuda.device(0):
-                        text, audio, vision, eval_attr = text.cuda(), audio.cuda(), vision.cuda(), eval_attr.cuda()
+                        text, audio, vision, eval_attr, text_mask, audio_mask, vision_mask = text.cuda(), audio.cuda(), vision.cuda(), eval_attr.cuda(), text_mask.cuda(), audio_mask.cuda(), vision_mask.cuda()
                         if hyp_params.dataset == 'iemocap':
                             eval_attr = eval_attr.long()
                         
@@ -226,7 +225,7 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
                     vision, _ = ctc_v2l_net(vision)   # vision aligned to text
                 
                 net = nn.DataParallel(model) if batch_size > 10 else model
-                preds, _ = net(text, audio, vision)
+                preds, _ = net(text, audio, vision, text_mask, audio_mask, vision_mask, False, ["A"])
                 if hyp_params.dataset == 'iemocap':
                     preds = preds.view(-1, 2)
                     eval_attr = eval_attr.view(-1)
@@ -272,7 +271,7 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
         [val_loss_lst, test_loss_lst]),
         columns=['valid', 'test'], index=[i for i in range(1,hyp_params.num_epochs + 1)])
 
-    name = "car30 all"
+    name = "only L, V"
     if not os.path.exists(f'../log/{name}'):
         os.mkdir(f'../log/{name}')
     train_loss_df.to_excel(f'../log/{name}/train_loss.xlsx')

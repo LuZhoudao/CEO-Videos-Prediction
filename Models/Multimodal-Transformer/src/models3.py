@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from modules.transformer import TransformerEncoder
-#from modules.encoders import SeqEncoder
+
 
 class MULTModel(nn.Module):
     def __init__(self, hyp_params):
@@ -39,26 +39,10 @@ class MULTModel(nn.Module):
         output_dim = hyp_params.output_dim        # This is actually not a hyperparameter :-)
 
         # 1. Temporal convolutional layers
-        # l_ksize = 3
-        # v_ksize = 3
-        # a_ksize = 3
-
-        # pad_l = int((l_ksize - 1) / 2)
-        # pad_v = int((v_ksize - 1) / 2)
-        # pad_a = int((a_ksize - 1) / 2)
-        #self.SequenceEncoder = SeqEncoder(self.hp)
+        
         self.proj_l = nn.Conv1d(self.orig_d_l, self.d_l, kernel_size=1, padding=0, bias=False)
         self.proj_a = nn.Conv1d(self.orig_d_a, self.d_a, kernel_size=1, padding=0, bias=False)
         self.proj_v = nn.Conv1d(self.orig_d_v, self.d_v, kernel_size=1, padding=0, bias=False)
-
-
-        # self.proj_l = nn.Conv1d(self.orig_d_l, self.d_l, kernel_size=l_ksize, padding=pad_l, bias=False)
-        # self.proj_a = nn.Conv1d(self.orig_d_a, self.d_a, kernel_size=a_ksize, padding=pad_a, bias=False)
-        # self.proj_v = nn.Conv1d(self.orig_d_v, self.d_v, kernel_size=v_ksize, padding=pad_v, bias=False)
-        # print(self.orig_d_l, self.orig_d_a, self.orig_d_v)
-        # self.proj_l = nn.Linear(self.orig_d_l, self.d_l)
-        # self.proj_a = nn.Linear(self.orig_d_a, self.d_a)
-        # self.proj_v = nn.Linear(self.orig_d_v, self.d_v)
 
         # 2. Crossmodal Attentions
         if self.lonly:
@@ -127,18 +111,16 @@ class MULTModel(nn.Module):
         x_l = x_l.transpose(1, 2)#F.dropout(x_l.transpose(1, 2), p=self.embed_dropout, training=self.training)
         x_a = x_a.transpose(1, 2)
         x_v = x_v.transpose(1, 2)
-        # print(x_l.shape, x_a.shape, x_v.shape)
+        #print(x_l, x_a, x_v)
         # Project the textual/visual/audio features
-        print(x_v)
+       
         proj_x_l = x_l if self.orig_d_l == self.d_l else self.proj_l(x_l)
         proj_x_a = x_a if self.orig_d_a == self.d_a else self.proj_a(x_a)
         proj_x_v = x_v if self.orig_d_v == self.d_v else self.proj_v(x_v)
-        print(proj_x_v)
         proj_x_a = proj_x_a.permute(2, 0, 1)
         proj_x_v = proj_x_v.permute(2, 0, 1)
         proj_x_l = proj_x_l.permute(2, 0, 1)
-        #print(proj_x_a)
-        # print(proj_x_l.shape, proj_x_a.shape, proj_x_v.shape)
+        print(proj_x_v)
 
         if self.lonly:
             #(V,A) --> L
@@ -181,7 +163,6 @@ class MULTModel(nn.Module):
        
         last_hs_proj = self.proj2(F.dropout(F.relu(self.proj1(last_hs)), p=self.out_dropout, training=self.training))
         last_hs_proj += last_hs
-        #print(last_hs_proj)
         output = self.out_layer(last_hs_proj)
-        # print(output)
+        #print(output)
         return output, last_hs

@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import sys
-from src import models
+from src import audio_models
 from src import ctc
 from src.utils import *
 import torch.optim as optim
@@ -10,7 +10,6 @@ import time
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import os
 import pickle
-import pandas as pd
 
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
@@ -31,7 +30,7 @@ def get_CTC_module(hyp_params):
     return a2l_module, v2l_module
 
 def initiate(hyp_params, train_loader, valid_loader, test_loader):
-    model = getattr(models, hyp_params.model+'Model')(hyp_params)
+    model = getattr(audio_models, hyp_params.model+'Model')(hyp_params)
 
     if hyp_params.use_cuda:
         model = model.cuda()
@@ -83,23 +82,17 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
     
     scheduler = settings['scheduler']
     
-    train_loss_df = pd.DataFrame()
-    val_test_df = pd.DataFrame()
-    
 
-    def train(model, optimizer, criterion, ctc_a2l_module, ctc_v2l_module, ctc_a2l_optimizer, ctc_v2l_optimizer, ctc_criterion, train_loss_df):
+    def train(model, optimizer, criterion, ctc_a2l_module, ctc_v2l_module, ctc_a2l_optimizer, ctc_v2l_optimizer, ctc_criterion):
         epoch_loss = 0
         model.train()
         num_batches = hyp_params.n_train // hyp_params.batch_size
         proc_loss, proc_size = 0, 0
         start_time = time.time()
-        train_loss = {}
-        num_epoch = 0
-       
         for i_batch, (batch_X, batch_Y, batch_META) in enumerate(train_loader):
-            sample_ind, text, audio, vision = batch_X
-            eval_attr = batch_Y.squeeze(-1)  # if num of labels is 1
-        
+            sample_ind, audio= batch_X
+            eval_attr = batch_Y.squeeze(-1)   # if num of labels is 1
+            
             model.zero_grad()
             if ctc_criterion is not None:
                 ctc_a2l_module.zero_grad()
@@ -107,11 +100,11 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
                 
             if hyp_params.use_cuda:
                 with torch.cuda.device(0):
-                    text, audio, vision, eval_attr = text.cuda(), audio.cuda(), vision.cuda(), eval_attr.cuda()
+                    audio, eval_attr = audio.cuda(), eval_attr.cuda()
                     if hyp_params.dataset == 'iemocap':
                         eval_attr = eval_attr.long()
             
-            batch_size = text.size(0)
+            batch_size = audio.size(0)
             batch_chunk = hyp_params.batch_chunk
             
             ######## CTC STARTS ######## Do not worry about this if not working on CTC
@@ -144,15 +137,15 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
             net = nn.DataParallel(model) if batch_size > 10 else model
             if batch_chunk > 1:
                 raw_loss = combined_loss = 0
-                text_chunks = text.chunk(batch_chunk, dim=0)
+                #text_chunks = text.chunk(batch_chunk, dim=0)
                 audio_chunks = audio.chunk(batch_chunk, dim=0)
-                vision_chunks = vision.chunk(batch_chunk, dim=0)
+                #vision_chunks = vision.chunk(batch_chunk, dim=0)
                 eval_attr_chunks = eval_attr.chunk(batch_chunk, dim=0)
                 
                 for i in range(batch_chunk):
-                    text_i, audio_i, vision_i = text_chunks[i], audio_chunks[i], vision_chunks[i]
+                    audio_i = audio_chunks[i]
                     eval_attr_i = eval_attr_chunks[i]
-                    preds_i, hiddens_i = net(text_i, audio_i, vision_i)
+                    preds_i, hiddens_i = net(audio_i)
                     
                     if hyp_params.dataset == 'iemocap':
                         preds_i = preds_i.view(-1, 2)
@@ -163,8 +156,7 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
                 ctc_loss.backward()
                 combined_loss = raw_loss + ctc_loss
             else:
-                #print(text.shape, audio.shape, vision.shape)
-                preds, hiddens = net(text, audio, vision)
+                preds, hiddens = net(audio)
                 if hyp_params.dataset == 'iemocap':
                     preds = preds.view(-1, 2)
                     eval_attr = eval_attr.view(-1)
@@ -191,11 +183,7 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
                       format(epoch, i_batch, num_batches, elapsed_time * 1000 / hyp_params.log_interval, avg_loss))
                 proc_loss, proc_size = 0, 0
                 start_time = time.time()
-                train_loss[i_batch] = avg_loss
-            num_epoch += 1
-            train_loss_df = pd.concat([train_loss_df, pd.DataFrame(train_loss, index=[num_epoch])])
-
-        
+                
         return epoch_loss / hyp_params.n_train
 
     def evaluate(model, ctc_a2l_module, ctc_v2l_module, criterion, test=False):
@@ -213,7 +201,7 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
             
                 if hyp_params.use_cuda:
                     with torch.cuda.device(0):
-                        text, audio, vision, eval_attr = text.cuda(), audio.cuda(), vision.cuda(), eval_attr.cuda()
+                        audio, eval_attr = audio.cuda(), eval_attr.cuda()
                         if hyp_params.dataset == 'iemocap':
                             eval_attr = eval_attr.long()
                         
@@ -226,7 +214,7 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
                     vision, _ = ctc_v2l_net(vision)   # vision aligned to text
                 
                 net = nn.DataParallel(model) if batch_size > 10 else model
-                preds, _ = net(text, audio, vision)
+                preds, _ = net(audio)
                 if hyp_params.dataset == 'iemocap':
                     preds = preds.view(-1, 2)
                     eval_attr = eval_attr.view(-1)
@@ -236,18 +224,17 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
                 results.append(preds)
                 truths.append(eval_attr)
                 
-        avg_loss = total_loss / (hyp_params.n_test if test else hyp_params.n_valid+1)
+        avg_loss = total_loss / (hyp_params.n_test if test else hyp_params.n_valid)
 
         results = torch.cat(results)
         truths = torch.cat(truths)
         return avg_loss, results, truths
 
     best_valid = 1e8
-    val_loss_lst = []
     test_loss_lst = []
     for epoch in range(1, hyp_params.num_epochs+1):
         start = time.time()
-        train(model, optimizer, criterion, ctc_a2l_module, ctc_v2l_module, ctc_a2l_optimizer, ctc_v2l_optimizer, ctc_criterion, train_loss_df)
+        train(model, optimizer, criterion, ctc_a2l_module, ctc_v2l_module, ctc_a2l_optimizer, ctc_v2l_optimizer, ctc_criterion)
         val_loss, _, _ = evaluate(model, ctc_a2l_module, ctc_v2l_module, criterion, test=False)
         test_loss, _, _ = evaluate(model, ctc_a2l_module, ctc_v2l_module, criterion, test=True)
         
@@ -259,28 +246,15 @@ def train_model(settings, hyp_params, train_loader, valid_loader, test_loader):
         print("-"*50)
         print('Epoch {:2d} | Time {:5.4f} sec | Valid Loss {} | Test Loss {}'.format(epoch, duration, val_loss, test_loss))
         print("-"*50)
-
-        val_loss_lst.append(val_loss)
-        test_loss_lst.append(test_loss)
         
         if val_loss < best_valid:
             print(f"Saved model at pre_trained_models/{hyp_params.name}.pt!")
             save_model(hyp_params, model, name=hyp_params.name)
             best_valid = val_loss
 
-    val_test_df = pd.DataFrame(np.column_stack(
-        [val_loss_lst, test_loss_lst]),
-        columns=['valid', 'test'], index=[i for i in range(1,hyp_params.num_epochs + 1)])
-
-    name = "car30 all"
-    if not os.path.exists(f'../log/{name}'):
-        os.mkdir(f'../log/{name}')
-    train_loss_df.to_excel(f'../log/{name}/train_loss.xlsx')
-    val_test_df.to_excel(f'../log/{name}/valid_test_loss.xlsx')
-
     model = load_model(hyp_params, name=hyp_params.name)
     _, results, truths = evaluate(model, ctc_a2l_module, ctc_v2l_module, criterion, test=True)
-    
+    print(test_loss_lst)    
 
     if hyp_params.dataset == "mosei_senti":
         eval_mosei_senti(results, truths, True)
