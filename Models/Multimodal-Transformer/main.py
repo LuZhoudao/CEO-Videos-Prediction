@@ -22,7 +22,7 @@ parser.add_argument('--lonly', action='store_true',
                     help='use the crossmodal fusion into l (default: False)')
 parser.add_argument('--aligned', action='store_true',
                     help='consider aligned experiment or not (default: False)')
-parser.add_argument('--dataset', type=str, default='car01',
+parser.add_argument('--dataset', type=str, default='car01_local',
                     help='dataset to use (default: mosei_senti)')
 parser.add_argument('--data_path', type=str, default='data',
                     help='path for storing the dataset')
@@ -36,7 +36,7 @@ parser.add_argument('--attn_dropout_v', type=float, default=0.0,
                     help='attention dropout (for visual)')
 parser.add_argument('--relu_dropout', type=float, default=0.1,
                     help='relu dropout')
-parser.add_argument('--embed_dropout', type=float, default=0.25,
+parser.add_argument(        '--embed_dropout', type=float, default=0.25,
                     help='embedding dropout')
 parser.add_argument('--res_dropout', type=float, default=0.1,
                     help='residual block dropout')
@@ -56,11 +56,11 @@ parser.add_argument('--batch_size', type=int, default=48, metavar='N',
                     help='batch size (default: 24)')
 parser.add_argument('--clip', type=float, default=0.8,
                     help='gradient clip value (default: 0.8)')
-parser.add_argument('--lr', type=float, default=1e-3,
+parser.add_argument('--lr', type=float, default=1e-5,
                     help='initial learning rate (default: 1e-3)')
 parser.add_argument('--optim', type=str, default='Adam',
                     help='optimizer to use (default: Adam)')
-parser.add_argument('--num_epochs', type=int, default=80,
+parser.add_argument('--num_epochs', type=int, default=150,
                     help='number of epochs (default: 40)')
 parser.add_argument('--when', type=int, default=20,
                     help='when to decay learning rate (default: 20)')
@@ -74,7 +74,7 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--no_cuda', action='store_true',
                     help='do not use cuda')
-parser.add_argument('--name', type=str, default='epoch_80_only_va',
+parser.add_argument('--name', type=str, default='epoch_100_all',
                     help='name of the trial (default: "mult")')
 args = parser.parse_args()
 
@@ -120,9 +120,9 @@ train_data = get_data(args, dataset, 'train')
 valid_data = get_data(args, dataset, 'valid')
 test_data = get_data(args, dataset, 'test')
    
-train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
-valid_loader = DataLoader(valid_data, batch_size=args.batch_size, shuffle=True)
-test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=True)
+train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=False)
+valid_loader = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False)
+test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False)
 
 print('Finish loading the data....')
 if not args.aligned:
@@ -150,4 +150,4 @@ hyp_params.criterion = criterion_dict.get(dataset, 'L1Loss')
 
 if __name__ == '__main__':
     test_loss = train.initiate(hyp_params, train_loader, valid_loader, test_loader)
-    print("80 only v a")
+    print("only A, V")
