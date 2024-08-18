@@ -149,11 +149,14 @@ class MULTModel(nn.Module):
                 'nonempty_input_mask': nonempty_input_mask}
 
     def forward(self, text, audio, video, text_mask, audio_mask, video_mask, force_cross_modal, modal_lst):
+        #print(audio)
         batch_size, seq_len = audio.shape[0], audio.shape[1]
         output, _ = self.lstm(audio.view(batch_size*seq_len, audio.shape[2], audio.shape[-1]))
         audio = output[:, -1, :].view(batch_size, seq_len, -1)
         # print("mask", audio_mask.shape)
         middle = {}
+        print(audio)
+        
 
         text_raw_embed = self.extract_text_tokens(text, text_mask)
         video_raw_embed = self.extract_video_tokens(video, video_mask)

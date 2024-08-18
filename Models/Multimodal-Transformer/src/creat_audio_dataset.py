@@ -60,130 +60,133 @@ class data_creater:
         valid_text_mask_lst = []
 
         for id in date_lst:
-            #try:
+            try:
             #if 1:    
-            id_path = os.path.join(DATES_PATH, id)
-            files_lst = os.listdir(os.path.join(id_path, "Global_features"))
-            files_lst = self.bubble_sort(files_lst)
+                id_path = os.path.join(DATES_PATH, id)
+                files_lst = os.listdir(os.path.join(id_path, "Global_features"))
+                files_lst = self.bubble_sort(files_lst)
 
-            with open(f'{id_path}/{id}_video_local.csv', 'r') as file:
-                reader = csv.reader(file)
-                # 提取第一列数据并转换为列表
-                if reader !="":
-                    video_name_lst = [row[0] for row in reader if row[1]]
-                
-            # with open(f'{id_path}/{id}_audio_local.csv', 'r') as file:
-            #     reader = csv.reader(file)
-            #     # 提取第一列数据并转换为列表
-            #     audio_name_lst = [row[0] for row in reader if row[1]]
+                with open(f'{id_path}/{id}_video_local.csv', 'r') as file:
+                    reader = csv.reader(file)
+                    # 提取第一列数据并转换为列表
+                    try:
+                        if reader !="":
+                            video_name_lst = [row[0] for row in reader if row[1]]
+                    except:
+                        video_name_lst = []
+                # with open(f'{id_path}/{id}_audio_local.csv', 'r') as file:
+                #     reader = csv.reader(file)
+                #     # 提取第一列数据并转换为列表
+                #     audio_name_lst = [row[0] for row in reader if row[1]]
 
-            # with open(f'{id_path}/{id}_text_local.csv', 'r') as file:
-            #     reader = csv.reader(file)
-            #     # 提取第一列数据并转换为列表
-            #     text_name_lst = [row[0] for row in reader if row[1]]
+                # with open(f'{id_path}/{id}_text_local.csv', 'r') as file:
+                #     reader = csv.reader(file)
+                #     # 提取第一列数据并转换为列表
+                #     text_name_lst = [row[0] for row in reader if row[1]]
 
-            audio_lst = []
-            video_lst = []
-            text_lst = []
-            video_mask_lst = []
-            audio_mask_lst = []
-            text_mask_lst = []
+                audio_lst = []
+                video_lst = []
+                text_lst = []
+                video_mask_lst = []
+                audio_mask_lst = []
+                text_mask_lst = []
 
-            for file in files_lst:
-                
-                channel_path = os.path.join(os.path.join(id_path, "Global_features"), file)
-                channel_files_lst = os.listdir(channel_path)
+                for file in files_lst:
+                    
+                    channel_path = os.path.join(os.path.join(id_path, "Global_features"), file)
+                    channel_files_lst = os.listdir(channel_path)
 
-                not_miss_lst = []
-                for channel in channel_files_lst:
-                    judge = channel.split('_')[-2] 
-                    not_miss_lst.append(judge)
-                
-                    if judge == 'audio':
-                        audio_embedding = np.load(os.path.join(channel_path, channel))[np.newaxis, :]
-                        shape1, shape2 = audio_embedding.shape[1], audio_embedding.shape[-1]
-                        audio_lst.append(audio_embedding.reshape(shape1, shape2))
-                        audio_mask_lst.append(np.ones((1), dtype=np.float32))
-                    #     #print(np.load(os.path.join(channel_path, channel))[np.newaxis, :].shape)
-                    elif judge == 'video':
-                        video_lst.append(np.load(os.path.join(channel_path, channel))[np.newaxis, :])
+                    not_miss_lst = []
+                    for channel in channel_files_lst:
+                        judge = channel.split('_')[-2] 
+                        not_miss_lst.append(judge)
+                    
+                        if judge == 'audio':
+                            audio_embedding = np.load(os.path.join(channel_path, channel))[np.newaxis, :]
+                            shape1, shape2 = audio_embedding.shape[1], audio_embedding.shape[-1]
+                            audio_lst.append(audio_embedding.reshape(shape1, shape2))
+                            audio_mask_lst.append(np.ones((1), dtype=np.float32))
+                        #     #print(np.load(os.path.join(channel_path, channel))[np.newaxis, :].shape)
+                        elif judge == 'video':
+                            video_lst.append(np.load(os.path.join(channel_path, channel))[np.newaxis, :])
+                            if file in video_name_lst:
+                                video_mask_lst.append(np.ones((1), dtype=np.float32))
+                            else:
+                                video_mask_lst.append(np.zeros((1), dtype=np.float32))
+                        elif judge == 'text':
+                            print(np.load(os.path.join(channel_path, channel))[np.newaxis, :].shape)
+                            text_lst.append(np.load(os.path.join(channel_path, channel))[np.newaxis, :])
+                            text_mask_lst.append(np.ones((1), dtype=np.float32))
+
+                    if 'video' not in not_miss_lst:
+                        
+                        #video_mask_lst.append(np.zeros((1, 768), dtype=np.float32))
+                        video_lst.append(np.zeros((1, 768), dtype=np.float32))
                         if file in video_name_lst:
                             video_mask_lst.append(np.ones((1), dtype=np.float32))
                         else:
                             video_mask_lst.append(np.zeros((1), dtype=np.float32))
-                    elif judge == 'text':
-                        text_lst.append(np.load(os.path.join(channel_path, channel))[np.newaxis, :])
-                        text_mask_lst.append(np.ones((1), dtype=np.float32))
+                    if 'text' not in not_miss_lst:
+                        text_mask_lst.append(np.zeros((1), dtype=np.float32))
+                        text_lst.append(np.zeros((1, 768), dtype=np.float32))
+                    if 'audio' not in not_miss_lst:
+                        audio_mask_lst.append(np.zeros((1), dtype=np.float32))             
+                        audio_lst.append(np.zeros((1, 128), dtype=np.float32))             
+                
+                #print(len(video_lst), len(audio_lst), len(text_lst))
+                label = round(er.loc[int(id), 'car01']*100, 4)
 
-                if 'video' not in not_miss_lst:
-                    
-                    #video_mask_lst.append(np.zeros((1, 768), dtype=np.float32))
-                    video_lst.append(np.zeros((768), dtype=np.float32))
-                    if file in video_name_lst:
-                        video_mask_lst.append(np.ones((1), dtype=np.float32))
-                    else:
-                        video_mask_lst.append(np.zeros((1), dtype=np.float32))
-                if 'text' not in not_miss_lst:
-                    text_mask_lst.append(np.zeros((1), dtype=np.float32))
-                    text_lst.append(np.zeros((768), dtype=np.float32))
-                if 'audio' not in not_miss_lst:
-                    audio_mask_lst.append(np.zeros((1), dtype=np.float32))             
-                    audio_lst.append(np.zeros((128), dtype=np.float32))             
-            
-            #print(len(video_lst), len(audio_lst), len(text_lst))
-            label = round(er.loc[int(id), 'car01']*100, 4)
-
-            if math.isnan(label):
-                continue
-            
-            video_array = np.array(video_lst, dtype=np.float32).reshape(np.array(video_lst).shape[0], np.array(video_lst).shape[-1])
-            audio_array = self.connect2(audio_lst) #S.reshape(np.array(audio_lst).shape[0], np.array(audio_lst).shape[-1])
-            text_array = np.array(text_lst, dtype=np.float32).reshape(np.array(text_lst).shape[0], np.array(text_lst).shape[-1])
-            label = np.array([label])
-            video_mask_array = np.array(video_mask_lst, dtype=np.float32)
-            audio_mask_array = np.array(audio_mask_lst, dtype=np.float32)
-            text_mask_array = np.array(text_mask_lst, dtype=np.float32)
+                if math.isnan(label):
+                    continue
+                
+                video_array = np.array(video_lst, dtype=np.float32).reshape(np.array(video_lst).shape[0], np.array(video_lst).shape[-1])
+                audio_array = self.connect2(audio_lst) #S.reshape(np.array(audio_lst).shape[0], np.array(audio_lst).shape[-1])
+                text_array = np.array(text_lst, dtype=np.float32).reshape(np.array(text_lst).shape[0], np.array(text_lst).shape[-1])
+                label = np.array([label])
+                video_mask_array = np.array(video_mask_lst, dtype=np.float32)
+                audio_mask_array = np.array(audio_mask_lst, dtype=np.float32)
+                text_mask_array = np.array(text_mask_lst, dtype=np.float32)
 
 
-            if id in o_train_id_lst:
-                #id = np.array([id])
-                #print(id)
-                train_id_lst.append(np.array([id]))
-                train_video_lst.append(video_array)
-                train_audio_lst.append(audio_array)
-                train_text_lst.append(text_array)
-                train_label_lst.append(label)
-                train_video_mask_lst.append(video_mask_array)
-                train_audio_mask_lst.append(audio_mask_array)
-                train_text_mask_lst.append(text_mask_array)
-                #self.add(self.train, id, country1, country2, pairs, label)
-            elif id in o_test_id_lst:
-                #id = np.array([int(id)])
-                test_id_lst.append(np.array([id]))
-                test_video_lst.append(video_array)
-                test_audio_lst.append(audio_array)
-                test_text_lst.append(text_array)
-                test_label_lst.append(label)
-                test_video_mask_lst.append(video_mask_array)
-                test_audio_mask_lst.append(audio_mask_array)
-                test_text_mask_lst.append(text_mask_array)
-                #self.add(self.test, id, country1, country2, pairs, label)
-            elif id in o_validation_id_lst:
-                #id = np.array([int(id)])
-                valid_id_lst.append(np.array([id]))
-                valid_video_lst.append(video_array)
-                valid_audio_lst.append(audio_array)
-                valid_text_lst.append(text_array)
-                valid_label_lst.append(label)
-                valid_video_mask_lst.append(video_mask_array)
-                valid_audio_mask_lst.append(audio_mask_array)
-                valid_text_mask_lst.append(text_mask_array)
+                if id in o_train_id_lst:
+                    #id = np.array([id])
+                    #print(id)
+                    train_id_lst.append(np.array([id]))
+                    train_video_lst.append(video_array)
+                    train_audio_lst.append(audio_array)
+                    train_text_lst.append(text_array)
+                    train_label_lst.append(label)
+                    train_video_mask_lst.append(video_mask_array)
+                    train_audio_mask_lst.append(audio_mask_array)
+                    train_text_mask_lst.append(text_mask_array)
+                    #self.add(self.train, id, country1, country2, pairs, label)
+                elif id in o_test_id_lst:
+                    #id = np.array([int(id)])
+                    test_id_lst.append(np.array([id]))
+                    test_video_lst.append(video_array)
+                    test_audio_lst.append(audio_array)
+                    test_text_lst.append(text_array)
+                    test_label_lst.append(label)
+                    test_video_mask_lst.append(video_mask_array)
+                    test_audio_mask_lst.append(audio_mask_array)
+                    test_text_mask_lst.append(text_mask_array)
+                    #self.add(self.test, id, country1, country2, pairs, label)
+                elif id in o_validation_id_lst:
+                    #id = np.array([int(id)])
+                    valid_id_lst.append(np.array([id]))
+                    valid_video_lst.append(video_array)
+                    valid_audio_lst.append(audio_array)
+                    valid_text_lst.append(text_array)
+                    valid_label_lst.append(label)
+                    valid_video_mask_lst.append(video_mask_array)
+                    valid_audio_mask_lst.append(audio_mask_array)
+                    valid_text_mask_lst.append(text_mask_array)
                 #self.add(self.dev, id, country1, country2, pairs, label)
-            # except:
-            #     pass
+            except:
+                pass
                 
 
-        print(train_id_lst)
+
         self.train["id"] = np.vstack(train_id_lst)
         self.train["video"] = self.connect(train_video_lst)
         self.train["audio"] = self.connect3(train_audio_lst)
@@ -267,8 +270,10 @@ class data_creater:
         return result
     
     def connect2(self, array_lst):
+        for arr in array_lst:
+            print(arr.shape)
         max_rows = max(arr.shape[0] for arr in array_lst)
-        max_cols = max(arr.shape[1] for arr in array_lst)
+        max_cols = max(arr.shape[-1] for arr in array_lst)
         #max_cols = 128
         num_arrays = len(array_lst)
 

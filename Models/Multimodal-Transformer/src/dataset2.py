@@ -52,6 +52,7 @@ class Multimodal_Datasets(Dataset):
     def __len__(self):
         return len(self.labels)
     def __getitem__(self, index):
+        #print(index, self.text.shape, self.audio.shape, self.vision.shape, self.audio_mask.shape, self.text_mask.shape, self.vision_mask.shape)
         X = (index, self.text[index], self.audio[index], self.vision[index], self.text_mask[index], self.audio_mask[index], self.vision_mask[index])
         Y = self.labels[index]
         META = 0 if self.meta is None else (self.meta[index][0])
